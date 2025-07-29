@@ -1,0 +1,17 @@
+node_modules
+build
+dist
+.env
+*.log
+*.cache
+coverage
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+/public/static
+/.next
+/.vercel
+.idea/
+.vscode/
+*.swp
