@@ -1,5 +1,6 @@
 {
-  "name": "azkpi",
+  "name": "az-kpi",
+  "description": "azKPI is a simple and effective app that helps users manage daily tasks and track key performance indicators (KPIs)",
   "private": true,
   "version": "0.0.0",
   "type": "module",
