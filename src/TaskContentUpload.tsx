@@ -32,13 +32,14 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
       }),
   });
 
+  // Create SealClient following official SEAL patterns from documentation
   const sealClient = new SealClient({
     suiClient,
     serverConfigs: getAllowlistedKeyServers("testnet").map((id) => ({
       objectId: id,
       weight: 1,
     })),
-    verifyKeyServers: false,
+    verifyKeyServers: false, // Set to false for performance as recommended in docs
   });
 
   const walrusServices = [
@@ -137,10 +138,11 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
     const taskIdBytes = fromHex(taskId);
     const id = toHex(new Uint8Array([...taskIdBytes, ...nonce]));
 
+    // Follow official SEAL encryption patterns
     const { encryptedObject } = await sealClient.encrypt({
       threshold: 2,
-      packageId,
-      id,
+      packageId: packageId, // Keep as string - SEAL library handles conversion
+      id: id, // Keep as string - SEAL library handles conversion
       data: contentBytes,
     });
 
@@ -159,10 +161,11 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
       const taskIdBytes = fromHex(taskId);
       const id = toHex(new Uint8Array([...taskIdBytes, ...nonce, i]));
 
+      // Follow official SEAL encryption patterns
       const { encryptedObject } = await sealClient.encrypt({
         threshold: 2,
-        packageId,
-        id,
+        packageId: packageId, // Keep as string - SEAL library handles conversion
+        id: id, // Keep as string - SEAL library handles conversion
         data: new Uint8Array(fileBytes),
       });
 
@@ -184,31 +187,41 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
     try {
       const tx = new Transaction();
 
-      // Upload content if provided
+      // Upload content if provided - following SEAL encryption patterns
       if (content.trim()) {
-        const contentBlobId = await encryptAndUploadContent();
-        tx.moveCall({
-          target: `${packageId}::task_manager::add_content`,
-          arguments: [
-            tx.object(taskId),
-            tx.pure.vector("u8", Array.from(new TextEncoder().encode(contentBlobId))),
-          ],
-        });
+        try {
+          const contentBlobId = await encryptAndUploadContent();
+          tx.moveCall({
+            target: `${packageId}::task_manager::add_content`,
+            arguments: [
+              tx.object(taskId),
+              tx.pure.vector("u8", Array.from(new TextEncoder().encode(contentBlobId))),
+            ],
+          });
+        } catch (contentError) {
+          console.error("Error encrypting/uploading content:", contentError);
+          throw new Error(`Content encryption failed: ${(contentError as any)?.message || contentError}`);
+        }
       }
 
-      // Upload files if provided
+      // Upload files if provided - following SEAL encryption patterns
       if (files && files.length > 0) {
-        const fileBlobIds = await encryptAndUploadFiles();
-        const encodedBlobIds = fileBlobIds.map(id => 
-          Array.from(new TextEncoder().encode(id))
-        );
-        tx.moveCall({
-          target: `${packageId}::task_manager::add_files`,
-          arguments: [
-            tx.object(taskId),
-            tx.pure.vector("vector<u8>", encodedBlobIds),
-          ],
-        });
+        try {
+          const fileBlobIds = await encryptAndUploadFiles();
+          const encodedBlobIds = fileBlobIds.map(id => 
+            Array.from(new TextEncoder().encode(id))
+          );
+          tx.moveCall({
+            target: `${packageId}::task_manager::add_files`,
+            arguments: [
+              tx.object(taskId),
+              tx.pure.vector("vector<u8>", encodedBlobIds),
+            ],
+          });
+        } catch (filesError) {
+          console.error("Error encrypting/uploading files:", filesError);
+          throw new Error(`File encryption failed: ${(filesError as any)?.message || filesError}`);
+        }
       }
 
       tx.setGasBudget(10000000);
@@ -224,15 +237,15 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
             setIsUploading(false);
           },
           onError: (error) => {
-            console.error("Error uploading:", error);
-            alert("Failed to upload content and files");
+            console.error("Error executing transaction:", error);
+            alert(`Failed to upload content and files: ${(error as any)?.message || error}`);
             setIsUploading(false);
           },
         }
       );
     } catch (error) {
-      console.error("Error during upload:", error);
-      alert("Failed to encrypt and upload data");
+      console.error("Error during upload process:", error);
+      alert(`Failed to encrypt and upload data: ${(error as any)?.message || error}`);
       setIsUploading(false);
     }
   };

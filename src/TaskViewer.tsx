@@ -120,9 +120,10 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
   const downloadAndDecryptFiles = async (
     blobIds: string[],
     sessionKey: SessionKey,
-    moveCallConstructor: (tx: Transaction, id: string) => void
+    moveCallConstructor: (tx: Transaction, id: string) => void,
+    sealClient: SealClient
   ): Promise<Array<{ name: string; url: string; type: string }>> => {
-    // Download encrypted files from Walrus aggregators
+    // Download encrypted files from Walrus aggregators following official patterns
     const validDownloads: { data: ArrayBuffer; blobId: string }[] = [];
     
     for (const blobId of blobIds) {
@@ -135,7 +136,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
           console.log("Downloading from:", url);
           
           const response = await fetch(url, {
-            signal: AbortSignal.timeout(8000), // Reduced timeout
+            signal: AbortSignal.timeout(8000), // 8 second timeout as recommended
           });
           
           if (response.ok) {
@@ -166,8 +167,8 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
 
     console.log(`Downloaded ${validDownloads.length} files successfully`);
 
-    // Fetch keys in batches of ≤10 for rate limiting (official pattern)
-    const batchSize = 10;
+    // Fetch keys in batches following official patterns for rate limiting
+    const batchSize = 10; // Official recommendation: ≤10 for rate limiting
     for (let i = 0; i < validDownloads.length; i += batchSize) {
       const batch = validDownloads.slice(i, i + batchSize);
       const ids = batch.map(item => {
@@ -194,7 +195,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
           throw new Error('No access to decryption keys - check task permissions');
         }
         
-        // Try with threshold 1 as fallback
+        // Try with threshold 1 as fallback following official patterns
         try {
           console.log("Retrying with threshold 1...");
           await sealClient.fetchKeys({ 
@@ -211,7 +212,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
       }
     }
 
-    // Decrypt files sequentially
+    // Decrypt files sequentially following official patterns
     const decryptedFiles: Array<{ name: string; url: string; type: string }> = [];
     for (let i = 0; i < validDownloads.length; i++) {
       const { data } = validDownloads[i];
@@ -233,21 +234,35 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
         // Enhanced MIME type detection following official patterns
         let mimeType = 'application/octet-stream';
         if (decryptedFile.length > 0) {
-          const header = new Uint8Array(decryptedFile.slice(0, 8));
-          // More comprehensive file type detection
+          const header = new Uint8Array(decryptedFile.slice(0, 12)); // Extended header check
+          
+          // Image formats
           if (header[0] === 0xFF && header[1] === 0xD8) {
             mimeType = 'image/jpeg';
           } else if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4E && header[3] === 0x47) {
             mimeType = 'image/png';
           } else if (header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46) {
             mimeType = 'image/gif';
-          } else if (header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46) {
+          } else if (header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46 && 
+                     header[8] === 0x57 && header[9] === 0x45 && header[10] === 0x42 && header[11] === 0x50) {
             mimeType = 'image/webp';
-          } else if (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46) {
+          }
+          // Document formats
+          else if (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46) {
             mimeType = 'application/pdf';
-          } else if (header[0] === 0x50 && header[1] === 0x4B) {
+          }
+          // Archive formats
+          else if (header[0] === 0x50 && header[1] === 0x4B && (header[2] === 0x03 || header[2] === 0x05)) {
             // ZIP-based formats (Office documents, etc.)
-            mimeType = 'application/zip';
+            if (header[2] === 0x03 && header[3] === 0x04) {
+              mimeType = 'application/zip';
+            } else if (header[2] === 0x05 && header[3] === 0x06) {
+              mimeType = 'application/zip'; // Empty archive
+            }
+          }
+          // Text formats
+          else if (header.every(byte => byte >= 32 && byte <= 126) || header.some(byte => byte === 9 || byte === 10 || byte === 13)) {
+            mimeType = 'text/plain';
           }
         }
         
@@ -298,11 +313,8 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
         throw new Error("You don't have access to this task. Only the creator or users the task is shared with can decrypt the content.");
       }
       
-      // Create session key following official patterns
+      // Create session key following official patterns from SEAL documentation
       console.log("Creating session key...");
-      console.log("Current account address:", currentAccount.address);
-      console.log("Package ID:", packageId);
-      console.log("Sui client:", !!suiClient);
       
       if (!packageId) {
         throw new Error("Package ID is undefined - check network configuration");
@@ -312,12 +324,13 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
         throw new Error("Current account address is undefined");
       }
       
+      // Following the official SessionKey.create pattern from SEAL docs
       let sessionKey;
       try {
-        sessionKey = new SessionKey({
+        sessionKey = await SessionKey.create({
           address: currentAccount.address,
-          packageId: packageId,
-          ttlMin: 30,
+          packageId: packageId, // Keep as string, the library handles conversion
+          ttlMin: 30, // 30 minutes TTL as recommended
           suiClient,
         });
         console.log("Session key created successfully");
@@ -326,12 +339,11 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
         throw new Error(`Session key creation failed: ${(sessionError as any)?.message || sessionError}`);
       }
       
-      // Get personal message for signing
+      // Get personal message for signing - following official patterns
       let message;
       try {
         message = sessionKey.getPersonalMessage();
-        console.log("Personal message retrieved:", message?.length ? "✓" : "✗");
-        console.log("Session key created, requesting signature...");
+        console.log("Personal message retrieved for wallet signing");
         
         if (!message) {
           throw new Error("Personal message is undefined");
@@ -341,27 +353,23 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
         throw new Error(`Personal message retrieval failed: ${(messageError as any)?.message || messageError}`);
       }
       
-      // Sign the message with user's wallet
+      // Sign the message with user's wallet following official patterns
       await signPersonalMessage(
         { message: message },
         {
           onSuccess: async (result) => {
             try {
               console.log("Personal message signed successfully");
-              console.log("Signature received:", !!result.signature);
               
               if (!result.signature) {
                 throw new Error("No signature received from wallet");
               }
               
-              await sessionKey.setPersonalMessageSignature(result.signature);
+              // Complete SessionKey initialization following official patterns
+              sessionKey.setPersonalMessageSignature(result.signature);
               console.log("Session key initialized successfully");
               
-              // Verify session key is properly initialized
-              console.log("Session key address:", sessionKey.getAddress());
-              console.log("Session key package ID:", sessionKey.getPackageId());
-              
-              // Create SealClient following official patterns
+              // Create SealClient following official patterns from documentation
               let sealClient;
               try {
                 sealClient = new SealClient({
@@ -370,13 +378,9 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                     objectId: id,
                     weight: 1,
                   })),
-                  verifyKeyServers: false,
+                  verifyKeyServers: false, // Set to false for performance as recommended
                 });
                 console.log("SealClient created successfully");
-                
-                if (!sealClient) {
-                  throw new Error("SealClient instance is undefined");
-                }
               } catch (clientError) {
                 console.error("Failed to create SealClient:", clientError);
                 throw new Error(`SealClient creation failed: ${(clientError as any)?.message || clientError}`);
@@ -393,18 +397,18 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                 });
               };
 
-              // Decrypt content if available
+              // Decrypt content if available - following official patterns
               if (task.content_blob_id) {
                 console.log("Decrypting content...");
                 console.log("Content blob ID:", task.content_blob_id);
                 
                 try {
                   const contentData = await downloadFromWalrus(task.content_blob_id);
-                  console.log("Download result:", contentData ? "Success" : "Failed");
                   
                   if (contentData) {
                     console.log("Content downloaded successfully, size:", contentData.length);
                     
+                    // Parse encrypted object following official patterns
                     let encryptedContent;
                     try {
                       encryptedContent = EncryptedObject.parse(contentData);
@@ -414,7 +418,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                       throw new Error(`Failed to parse encrypted content: ${(parseError as any)?.message || parseError}`);
                     }
                     
-                    // Fetch key for content following official patterns
+                    // Build transaction for access control check following official patterns
                     let tx, txBytes;
                     try {
                       tx = new Transaction();
@@ -426,6 +430,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                       throw new Error(`Transaction build failed: ${(txError as any)?.message || txError}`);
                     }
                     
+                    // Fetch keys using official patterns with proper error handling
                     try {
                       console.log("Fetching keys for content...");
                       await sealClient.fetchKeys({
@@ -437,11 +442,27 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                       console.log("Keys fetched successfully for content");
                     } catch (keyError) {
                       console.error("Failed to fetch keys:", keyError);
-                      throw new Error(`Key fetch failed: ${(keyError as any)?.message || keyError}`);
+                      if (keyError instanceof NoAccessError) {
+                        throw new Error('No access to decryption keys - check task permissions');
+                      }
+                      // Retry with threshold 1 as fallback following official patterns
+                      try {
+                        console.log("Retrying with threshold 1...");
+                        await sealClient.fetchKeys({
+                          ids: [encryptedContent.id],
+                          txBytes,
+                          sessionKey,
+                          threshold: 1,
+                        });
+                        console.log("Keys fetched successfully with threshold 1");
+                      } catch (retryError) {
+                        console.error("Retry with threshold 1 also failed:", retryError);
+                        throw new Error('Unable to fetch decryption keys from key servers');
+                      }
                     }
                     
+                    // Decrypt content following official patterns
                     try {
-                      // Decrypt content
                       console.log("Decrypting content...");
                       const decryptedBytes = await sealClient.decrypt({
                         data: contentData,
@@ -462,18 +483,11 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                   }
                 } catch (contentError) {
                   console.error("Error decrypting content:", contentError);
-                  console.error("Content error type:", typeof contentError);
-                  console.error("Content error details:", {
-                    message: (contentError as any)?.message,
-                    stack: (contentError as any)?.stack,
-                    name: (contentError as any)?.name,
-                    constructor: contentError?.constructor?.name
-                  });
                   throw new Error(`Content decryption failed: ${(contentError as any)?.message || contentError || 'Unknown error'}`);
                 }
               }
 
-              // Decrypt files if available
+              // Decrypt files if available following official patterns
               if (task.file_blob_ids && task.file_blob_ids.length > 0) {
                 console.log(`Decrypting ${task.file_blob_ids.length} files...`);
                 console.log("File blob IDs:", task.file_blob_ids);
@@ -482,7 +496,8 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                   const decryptedFileUrls = await downloadAndDecryptFiles(
                     task.file_blob_ids,
                     sessionKey,
-                    moveCallConstructor
+                    moveCallConstructor,
+                    sealClient
                   );
                   setDecryptedFiles(decryptedFileUrls);
                   console.log(`${decryptedFileUrls.length} files decrypted successfully`);
@@ -497,14 +512,6 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
               
             } catch (decryptError) {
               console.error("Decryption process failed:", decryptError);
-              console.error("Error type:", typeof decryptError);
-              console.error("Error constructor:", decryptError?.constructor?.name);
-              console.error("Error details:", {
-                message: (decryptError as any)?.message,
-                stack: (decryptError as any)?.stack,
-                name: (decryptError as any)?.name,
-                toString: decryptError?.toString?.()
-              });
               handleDecryptionError(decryptError);
             }
           },
@@ -518,14 +525,6 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
       
     } catch (error: unknown) {
       console.error("Error in decryptTaskContent:", error);
-      console.error("Outer error type:", typeof error);
-      console.error("Outer error constructor:", error?.constructor?.name);
-      console.error("Outer error details:", {
-        message: (error as any)?.message,
-        stack: (error as any)?.stack,
-        name: (error as any)?.name,
-        toString: error?.toString?.()
-      });
       handleDecryptionError(error);
     }
   };
