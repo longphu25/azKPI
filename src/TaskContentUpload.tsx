@@ -52,13 +52,25 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
       id: "service2", 
       name: "staketab.org",
       publisherUrl: "https://walrus-testnet-publisher.staketab.org",
-      aggregatorUrl: "https://walrus-testnet-aggregator.staketab.org",
+      aggregatorUrl: "https://wal-aggregator-testnet.staketab.org",
     },
     {
       id: "service3",
-      name: "redundex.com", 
-      publisherUrl: "https://walrus-testnet-publisher.redundex.com",
-      aggregatorUrl: "https://walrus-testnet-aggregator.redundex.com",
+      name: "nodes.guru", 
+      publisherUrl: "https://walrus-testnet-publisher.nodes.guru",
+      aggregatorUrl: "https://walrus-testnet-aggregator.nodes.guru",
+    },
+    {
+      id: "service4",
+      name: "blockscope.net",
+      publisherUrl: "https://walrus-testnet-publisher.blockscope.net",
+      aggregatorUrl: "https://walrus-testnet.blockscope.net",
+    },
+    {
+      id: "service5",
+      name: "overclock.run",
+      publisherUrl: "https://walrus-testnet-publisher.overclock.run",
+      aggregatorUrl: "https://sui-walrus-testnet.overclock.run",
     },
   ];
 
@@ -76,7 +88,7 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
   };
 
   const uploadToWalrus = async (data: Uint8Array): Promise<string> => {
-    const url = getPublisherUrl("/blobs?epochs=1");
+    const url = getPublisherUrl("/blobs");
     console.log("Uploading to Walrus URL:", url);
     console.log("Data size:", data.length, "bytes");
     
@@ -90,90 +102,28 @@ export function TaskContentUpload({ taskId, onContentUploaded }: TaskContentUplo
       });
 
       console.log("Walrus response status:", response.status, response.statusText);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
-
+      
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Walrus error response:", errorText);
         throw new Error(`Failed to upload to Walrus: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      const responseText = await response.text();
-      console.log("Raw response text:", responseText);
+      const result = await response.json();
+      console.log("Walrus response:", JSON.stringify(result, null, 2));
       
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error("Failed to parse JSON response:", parseError);
-        console.log("Response was not valid JSON, trying to extract blob ID from text");
-        
-        // Try to extract blob ID from text response (some APIs return plain text)
-        const blobIdMatch = responseText.match(/[a-fA-F0-9]{64}/);
-        if (blobIdMatch) {
-          console.log("Extracted blob ID from text:", blobIdMatch[0]);
-          return blobIdMatch[0];
-        }
-        
-        throw new Error(`Invalid JSON response from Walrus: ${responseText}`);
+      // Extract blob ID using official patterns
+      let blobId: string;
+      if (result.newlyCreated?.blobObject?.blobId) {
+        blobId = result.newlyCreated.blobObject.blobId;
+      } else if (result.alreadyCertified?.blobId) {
+        blobId = result.alreadyCertified.blobId;
+      } else {
+        throw new Error(`Could not extract blobId from Walrus response: ${JSON.stringify(result)}`);
       }
       
-      console.log("Parsed Walrus response:", JSON.stringify(result, null, 2));
-      console.log("Response type:", typeof result);
-      console.log("Response keys:", Object.keys(result || {}));
-      
-      // Handle different possible response formats
-      if (result && typeof result === 'object') {
-        // Check for direct blobId in response
-        if (result.blobId) {
-          console.log("Found blobId directly:", result.blobId);
-          return result.blobId;
-        }
-        
-        // Check for newlyCreated structure (most common for new uploads)
-        if (result.newlyCreated?.blobObject?.blobId) {
-          console.log("Found newlyCreated blobId:", result.newlyCreated.blobObject.blobId);
-          return result.newlyCreated.blobObject.blobId;
-        }
-        
-        // Check for alreadyCertified structure (for existing blobs)
-        if (result.alreadyCertified?.blobId) {
-          console.log("Found alreadyCertified blobId:", result.alreadyCertified.blobId);
-          return result.alreadyCertified.blobId;
-        }
-        
-        // Check for nested info structure (legacy format)
-        if (result.info) {
-          console.log("Found info object:", result.info);
-          if ("alreadyCertified" in result.info && result.info.alreadyCertified?.blobId) {
-            console.log("Found info.alreadyCertified blobId:", result.info.alreadyCertified.blobId);
-            return result.info.alreadyCertified.blobId;
-          } else if ("newlyCreated" in result.info && result.info.newlyCreated?.blobObject?.blobId) {
-            console.log("Found info.newlyCreated blobId:", result.info.newlyCreated.blobObject.blobId);
-            return result.info.newlyCreated.blobObject.blobId;
-          }
-        }
-        
-        // Check for other possible formats
-        if (result.data?.blobId) {
-          console.log("Found data.blobId:", result.data.blobId);
-          return result.data.blobId;
-        }
-        
-        if (result.blob_id) {
-          console.log("Found blob_id:", result.blob_id);
-          return result.blob_id;
-        }
-        
-        // Check if result itself is a string (blob ID)
-        if (typeof result === 'string' && result.length >= 40) {
-          console.log("Response is a blob ID string:", result);
-          return result;
-        }
-      }
-      
-      console.error("Could not extract blobId from response. Available fields:", Object.keys(result || {}));
-      throw new Error(`Could not extract blobId from Walrus response: ${JSON.stringify(result)}`);
+      console.log("Successfully uploaded, blob ID:", blobId);
+      return blobId;
       
     } catch (error) {
       console.error("Walrus upload error:", error);
