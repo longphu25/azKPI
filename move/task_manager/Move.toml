@@ -1,0 +1,8 @@
+[package]
+name = "task_manager"
+version = "1.0.0"
+edition = "2024.beta"
+
+
+[addresses]
+task_manager = "0x0"
