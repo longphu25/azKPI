@@ -6,10 +6,12 @@
 /// Content and files are stored on Walrus storage for decentralized access
 module task_manager::task_manager {
   use sui::event;
+  use sui::address;
   use std::string::{Self, String};
 
   /// Error codes
   const ENotCreator: u64 = 0;
+  const ENoAccess: u64 = 1;
 
   /// Task object that contains metadata and references to Walrus-stored content
   public struct Task has key, store {
@@ -177,6 +179,25 @@ module task_manager::task_manager {
     vector::contains(&task.shared_with, &user)
   }
 
+  /// Get the namespace for this task (used for Seal ID verification)
+  public fun namespace(task: &Task): vector<u8> {
+    // Use the task's unique ID as namespace
+    let task_id = object::uid_to_address(&task.id);
+    address::to_bytes(task_id)
+  }
+
+  /// Internal function to verify access for Seal decryption
+  fun approve_internal(caller: address, _id: vector<u8>, task: &Task): bool {
+    // For task manager, we use the task's access control
+    // In a more complex implementation, you might also check if the ID has the right prefix
+    // let task_namespace = namespace(task);
+    // if (!is_prefix(task_namespace, id)) {
+    //     return false
+    // };
+    
+    has_access(task, caller)
+  }
+
   /// Verify access for decryption (used by Seal)
   public fun verify_access(task: &Task, ctx: &TxContext): bool {
     let user = tx_context::sender(ctx);
@@ -185,9 +206,8 @@ module task_manager::task_manager {
 
   /// Seal approve function for IBE decryption
   /// This function is called by Seal key servers to verify access
-  entry fun seal_approve(_id: vector<u8>, task: &Task, ctx: &TxContext) {
-    let user = tx_context::sender(ctx);
-    assert!(has_access(task, user), ENotCreator);
+  entry fun seal_approve(id: vector<u8>, task: &Task, ctx: &TxContext) {
+    assert!(approve_internal(tx_context::sender(ctx), id, task), ENoAccess);
   }
 
   // Getter functions
