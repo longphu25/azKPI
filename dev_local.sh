@@ -28,4 +28,5 @@ fi
 docker run --name suidevcontainer -it \
     -v "$(pwd)":/sui \
     -v "$(pwd)/wallet/sui_config:/root/.sui/sui_config" \
+    -v "$(pwd)/.bashrc:/root/.bashrc" \
     mysten/sui-tools:testnet
