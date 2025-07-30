@@ -8,17 +8,26 @@ importers:
 
   .:
     dependencies:
+      '@mysten/bcs':
+        specifier: ^1.6.4
+        version: 1.6.4
       '@mysten/dapp-kit':
         specifier: 0.17.1
         version: 0.17.1(@tanstack/react-query@5.83.0(react@18.3.1))(@types/react-dom@18.3.7(@types/react@18.3.23))(@types/react@18.3.23)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.8.3)
+      '@mysten/seal':
+        specifier: ^0.4.19
+        version: 0.4.19(typescript@5.8.3)
       '@mysten/sui':
         specifier: 1.37.0
         version: 1.37.0(typescript@5.8.3)
+      '@mysten/walrus':
+        specifier: ^0.5.1
+        version: 0.5.1(typescript@5.8.3)
       '@radix-ui/colors':
         specifier: ^3.0.0
         version: 3.0.0
       '@radix-ui/react-icons':
-        specifier: ^1.3.0
+        specifier: ^1.3.2
         version: 1.3.2(react@18.3.1)
       '@radix-ui/themes':
         specifier: ^3.2.1
@@ -37,10 +46,10 @@ importers:
         version: 0.14.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@types/react':
-        specifier: ^18.3.3
+        specifier: ^18.3.23
         version: 18.3.23
       '@types/react-dom':
-        specifier: ^18.3.0
+        specifier: ^18.3.7
         version: 18.3.7(@types/react@18.3.23)
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.38.0
@@ -50,9 +59,9 @@ importers:
         version: 8.38.0(eslint@9.32.0)(typescript@5.8.3)
       '@vitejs/plugin-react-swc':
         specifier: ^3.11.0
-        version: 3.11.0(vite@7.0.6)
+        version: 3.11.0(vite@7.0.6(@types/node@24.1.0))
       eslint:
-        specifier: ^9.17.0
+        specifier: ^9.32.0
         version: 9.32.0
       eslint-plugin-react-hooks:
         specifier: ^5.2.0
@@ -67,8 +76,8 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
       vite:
-        specifier: ^7.0.5
-        version: 7.0.6
+        specifier: ^7.0.6
+        version: 7.0.6(@types/node@24.1.0)
 
 packages:
 
@@ -356,6 +365,9 @@ packages:
       '@tanstack/react-query': ^5.0.0
       react: '*'
 
+  '@mysten/seal@0.4.19':
+    resolution: {integrity: sha512-c2EcEJg7TSJ4pxSSK+ap7O8MEUa/3qq3epMuxp1Cc5C9W1YrrNmplfOgfIT3us8VlM+K2bJpjWzuBg7MtFkO4Q==}
+
   '@mysten/slush-wallet@0.1.18':
     resolution: {integrity: sha512-S3viZWjRfGFf2nAsJEouDZ7mz9qSqCFCKlmyVsG/QMZZc07BUz6aatxpcZah8QZx2voiZrhhJmpbKsH6LD4PDA==}
 
@@ -368,6 +380,12 @@ packages:
 
   '@mysten/wallet-standard@0.16.8':
     resolution: {integrity: sha512-tHQS2n2foYh6IRARrmgjrVuPdU+PEuvuQ+OhPNGDDZvv0zh2wfos2lEL/08+2lPllnU7E63b3U4vkIVjUi8I8g==}
+
+  '@mysten/walrus-wasm@0.1.0':
+    resolution: {integrity: sha512-sCTFzzbMImfd9nKZM/wgRBa8P6miLk6BbEdqKft+UIgmJyvd60DV4+hXvIoVIYTSdgP7FUIgu+9If1hVfvv5BA==}
+
+  '@mysten/walrus@0.5.1':
+    resolution: {integrity: sha512-DXKXHU6YdLAH3IkxzxCJ/z2jgAtfJh5k+Yz4LURxEPPwRRAVtuftVCQ19jV/w9JFtsKhTC8EWzX5upMoyy9YEg==}
 
   '@mysten/window-wallet-core@0.0.6':
     resolution: {integrity: sha512-uYjdUVok0pAaMGMxAdZfmW+2SCXgdQok9YtKmno5Tj8zlRQGv9Qet7EuCnDcBKquSbtqid3yhug7fcD+t8/KmA==}
@@ -1304,6 +1322,9 @@ packages:
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
+  '@types/node@24.1.0':
+    resolution: {integrity: sha512-ut5FthK5moxFKH2T1CUOC6ctR67rQRvvHdFLCD2Ql6KXmMuCrjsSsRI9UsLCm9M18BMwClv4pn327UvB7eeO1w==}
+
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
 
@@ -1503,6 +1524,9 @@ packages:
 
   csstype@3.1.3:
     resolution: {integrity: sha512-M1uQkMl8rQK/szD0LNhtqxIPLpimGm8sOBwU7lLnCpSbTyY3yeU1Vc7l4KT5zT4s/yOxHH5O7tIuuLOCnLADRw==}
+
+  dataloader@2.2.3:
+    resolution: {integrity: sha512-y2krtASINtPFS1rSDjacrFgn1dcUuoREVabwlOGOe4SdxenREqwjwjElAdwvbGM7kgZz9a3KVicWR7vcz8rnzA==}
 
   debug@4.4.1:
     resolution: {integrity: sha512-KcKCqiftBJcZr++7ykoDIEwSa3XWowTfNPo92BYxjXiyYEVrUQh2aLyhxBCwww+heortUFxEJYcRzosstTEBYQ==}
@@ -1969,6 +1993,9 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  undici-types@7.8.0:
+    resolution: {integrity: sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw==}
+
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
@@ -2284,6 +2311,17 @@ snapshots:
       - react-dom
       - typescript
 
+  '@mysten/seal@0.4.19(typescript@5.8.3)':
+    dependencies:
+      '@mysten/bcs': 1.6.4
+      '@mysten/sui': 1.37.0(typescript@5.8.3)
+      '@noble/curves': 1.9.5
+      '@noble/hashes': 1.8.0
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
+
   '@mysten/slush-wallet@0.1.18(typescript@5.8.3)':
     dependencies:
       '@mysten/sui': 1.37.0(typescript@5.8.3)
@@ -2324,6 +2362,20 @@ snapshots:
     dependencies:
       '@mysten/sui': 1.37.0(typescript@5.8.3)
       '@wallet-standard/core': 1.1.1
+    transitivePeerDependencies:
+      - '@gql.tada/svelte-support'
+      - '@gql.tada/vue-support'
+      - typescript
+
+  '@mysten/walrus-wasm@0.1.0': {}
+
+  '@mysten/walrus@0.5.1(typescript@5.8.3)':
+    dependencies:
+      '@mysten/bcs': 1.6.4
+      '@mysten/sui': 1.37.0(typescript@5.8.3)
+      '@mysten/utils': 0.1.1
+      '@mysten/walrus-wasm': 0.1.0
+      dataloader: 2.2.3
     transitivePeerDependencies:
       - '@gql.tada/svelte-support'
       - '@gql.tada/vue-support'
@@ -3256,6 +3308,11 @@ snapshots:
 
   '@types/json-schema@7.0.15': {}
 
+  '@types/node@24.1.0':
+    dependencies:
+      undici-types: 7.8.0
+    optional: true
+
   '@types/prop-types@15.7.15': {}
 
   '@types/react-dom@18.3.7(@types/react@18.3.23)':
@@ -3387,11 +3444,11 @@ snapshots:
     dependencies:
       '@vanilla-extract/css': 1.17.4
 
-  '@vitejs/plugin-react-swc@3.11.0(vite@7.0.6)':
+  '@vitejs/plugin-react-swc@3.11.0(vite@7.0.6(@types/node@24.1.0))':
     dependencies:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@swc/core': 1.13.3
-      vite: 7.0.6
+      vite: 7.0.6(@types/node@24.1.0)
     transitivePeerDependencies:
       - '@swc/helpers'
 
@@ -3494,6 +3551,8 @@ snapshots:
   cssesc@3.0.0: {}
 
   csstype@3.1.3: {}
+
+  dataloader@2.2.3: {}
 
   debug@4.4.1:
     dependencies:
@@ -4002,6 +4061,9 @@ snapshots:
 
   typescript@5.8.3: {}
 
+  undici-types@7.8.0:
+    optional: true
+
   uri-js@4.4.1:
     dependencies:
       punycode: 2.3.1
@@ -4027,7 +4089,7 @@ snapshots:
 
   valibot@0.36.0: {}
 
-  vite@7.0.6:
+  vite@7.0.6(@types/node@24.1.0):
     dependencies:
       esbuild: 0.25.8
       fdir: 6.4.6(picomatch@4.0.3)
@@ -4036,6 +4098,7 @@ snapshots:
       rollup: 4.46.1
       tinyglobby: 0.2.14
     optionalDependencies:
+      '@types/node': 24.1.0
       fsevents: 2.3.3
 
   which@2.0.2:
