@@ -1,0 +1,176 @@
+/* Landing Page Custom Styles */
+
+/* Hero section animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Landing page specific styles */
+.landing-hero {
+  animation: fadeInUp 0.8s ease-out;
+}
+
+.landing-feature-card {
+  transition: all 0.3s ease;
+  animation: fadeInUp 0.8s ease-out;
+}
+
+.landing-feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 112, 243, 0.2);
+  background: hsl(var(--blue-4)) !important;
+  border-color: hsl(var(--blue-7)) !important;
+}
+
+.landing-feature-icon {
+  animation: float 3s ease-in-out infinite;
+}
+
+.landing-benefit-card {
+  animation: slideInFromLeft 0.8s ease-out;
+  transition: all 0.3s ease;
+}
+
+.landing-benefit-card:hover {
+  transform: translateX(5px);
+  background: hsl(var(--blue-4)) !important;
+  border-color: hsl(var(--blue-7)) !important;
+}
+
+.landing-step {
+  animation: fadeInUp 0.8s ease-out;
+  transition: all 0.3s ease;
+}
+
+.landing-step:hover {
+  transform: scale(1.05);
+}
+
+.landing-tech-card {
+  animation: slideInFromRight 0.8s ease-out;
+  transition: all 0.3s ease;
+}
+
+.landing-tech-card:hover {
+  transform: translateY(-5px);
+  background: hsl(var(--blue-4)) !important;
+  border-color: hsl(var(--blue-7)) !important;
+}
+
+.landing-cta {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .landing-hero h1 {
+    font-size: 2.5rem !important;
+    line-height: 1.2 !important;
+  }
+  
+  .landing-hero p {
+    font-size: 1.1rem !important;
+  }
+}
+
+/* Gradient text animation for dark mode */
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animated-gradient-text {
+  background: linear-gradient(-45deg, hsl(var(--blue-11)), hsl(var(--purple-11)), hsl(var(--green-11)), hsl(var(--blue-11)));
+  background-size: 400% 400%;
+  animation: gradientShift 3s ease infinite;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: hsl(var(--blue-12)); /* Fallback color for when gradient doesn't work */
+}
+
+/* Ensure text is visible if gradient fails */
+@supports not (-webkit-background-clip: text) {
+  .animated-gradient-text {
+    color: hsl(var(--blue-12)) !important;
+    background: none !important;
+  }
+}
+
+/* Backdrop blur support */
+.backdrop-blur {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--gray-3));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--gray-8));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--gray-9));
+}
