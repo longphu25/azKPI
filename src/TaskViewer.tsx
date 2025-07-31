@@ -71,6 +71,58 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
     "https://aggregator-devnet.walrus.space",
   ];
 
+  // Helper function to check key server connectivity
+  const checkKeyServerConnectivity = async (): Promise<{ isConnected: boolean; details: string }> => {
+    try {
+      console.log("Checking key server connectivity...");
+      const keyServers = getAllowlistedKeyServers('testnet');
+      
+      if (keyServers.length === 0) {
+        console.error("No key servers available");
+        return { isConnected: false, details: "No key servers configured for testnet" };
+      }
+      
+      console.log("Available key servers:", keyServers);
+      const accessibleServers: string[] = [];
+      const failedServers: string[] = [];
+      
+      // Try to fetch basic info from all key servers
+      for (const serverId of keyServers) {
+        try {
+          console.log("Checking key server:", serverId);
+          const serverObject = await suiClient.getObject({
+            id: serverId,
+            options: { showContent: true, showType: true, showOwner: true }
+          });
+          
+          if (serverObject.data) {
+            console.log("Key server", serverId, "is accessible, type:", serverObject.data.type);
+            accessibleServers.push(serverId);
+          } else {
+            console.warn("Key server", serverId, "returned no data");
+            failedServers.push(`${serverId} (no data)`);
+          }
+        } catch (serverError) {
+          const errorMsg = (serverError as any)?.message || String(serverError);
+          console.warn("Key server", serverId, "check failed:", errorMsg);
+          failedServers.push(`${serverId} (${errorMsg})`);
+        }
+      }
+      
+      const details = `Accessible: ${accessibleServers.length}/${keyServers.length} servers. Failed: ${failedServers.join(', ')}`;
+      console.log("Key server connectivity result:", details);
+      
+      return { 
+        isConnected: accessibleServers.length > 0, 
+        details 
+      };
+    } catch (error) {
+      const errorMsg = (error as any)?.message || String(error);
+      console.error("Key server connectivity check failed:", errorMsg);
+      return { isConnected: false, details: `Connectivity check failed: ${errorMsg}` };
+    }
+  };
+
   useEffect(() => {
     if (taskId) {
       fetchTask();
@@ -196,23 +248,37 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
 
     console.log(`Downloaded ${validDownloads.length} files successfully`);
 
+    // Parse encrypted objects and collect IDs following official SEAL patterns
+    const encryptedObjects: { obj: any; data: ArrayBuffer; blobId: string }[] = [];
+    for (const download of validDownloads) {
+      try {
+        const encryptedObj = EncryptedObject.parse(new Uint8Array(download.data));
+        encryptedObjects.push({ obj: encryptedObj, data: download.data, blobId: download.blobId });
+      } catch (parseError) {
+        console.error(`Failed to parse encrypted object for blob ${download.blobId}:`, parseError);
+        // Continue with other files instead of failing completely
+      }
+    }
+
+    if (encryptedObjects.length === 0) {
+      throw new Error('No valid encrypted objects found in downloaded files');
+    }
+
     // Fetch keys in batches following official patterns for rate limiting
     const batchSize = 10; // Official recommendation: ≤10 for rate limiting
-    for (let i = 0; i < validDownloads.length; i += batchSize) {
-      const batch = validDownloads.slice(i, i + batchSize);
-      const ids = batch.map(item => {
-        const encryptedObj = EncryptedObject.parse(new Uint8Array(item.data));
-        return encryptedObj.id;
-      });
+    const allIds = encryptedObjects.map(item => item.obj.id);
+    
+    for (let i = 0; i < allIds.length; i += batchSize) {
+      const batch = allIds.slice(i, i + batchSize);
       
       const tx = new Transaction();
-      ids.forEach(id => moveCallConstructor(tx, id));
+      batch.forEach(id => moveCallConstructor(tx, id));
       const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
       
       try {
-        console.log(`Fetching keys for batch ${Math.floor(i / batchSize) + 1}, IDs:`, ids);
+        console.log(`Fetching keys for batch ${Math.floor(i / batchSize) + 1}, IDs:`, batch);
         await sealClient.fetchKeys({ 
-          ids, 
+          ids: batch, 
           txBytes, 
           sessionKey, 
           threshold: 2 
@@ -220,6 +286,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
         console.log("Keys fetched successfully for batch");
       } catch (err) {
         console.error("fetchKeys error for batch:", err);
+        
         if (err instanceof NoAccessError) {
           throw new Error('No access to decryption keys - check task permissions');
         }
@@ -228,7 +295,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
         try {
           console.log("Retrying with threshold 1...");
           await sealClient.fetchKeys({ 
-            ids, 
+            ids: batch, 
             txBytes, 
             sessionKey, 
             threshold: 1 
@@ -236,23 +303,22 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
           console.log("Keys fetched successfully with threshold 1");
         } catch (retryErr) {
           console.error("Retry with threshold 1 also failed:", retryErr);
-          throw new Error('Unable to fetch decryption keys from key servers');
+          throw new Error(`Unable to fetch decryption keys for files: ${(retryErr as any)?.message || 'Key servers may be unavailable'}`);
         }
       }
     }
 
     // Decrypt files sequentially following official patterns
     const decryptedFiles: Array<{ name: string; url: string; type: string }> = [];
-    for (let i = 0; i < validDownloads.length; i++) {
-      const { data } = validDownloads[i];
-      const encryptedObj = EncryptedObject.parse(new Uint8Array(data));
+    for (let i = 0; i < encryptedObjects.length; i++) {
+      const { obj: encryptedObj, data } = encryptedObjects[i];
       
       const tx = new Transaction();
       moveCallConstructor(tx, encryptedObj.id);
       const txBytes = await tx.build({ client: suiClient, onlyTransactionKind: true });
       
       try {
-        console.log(`Decrypting file ${i + 1}/${validDownloads.length}`);
+        console.log(`Decrypting file ${i + 1}/${encryptedObjects.length}`);
         // Keys are already fetched, this only does local decryption (official pattern)
         const decryptedFile = await sealClient.decrypt({
           data: new Uint8Array(data),
@@ -334,6 +400,25 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
       console.log("Package ID:", packageId);
       console.log("Task ID:", taskId);
       
+      // Test basic Sui network connectivity
+      try {
+        console.log("Testing Sui network connectivity...");
+        const networkInfo = await suiClient.getChainIdentifier();
+        console.log("Network connected successfully, chain:", networkInfo);
+      } catch (networkError) {
+        console.error("Sui network connectivity test failed:", networkError);
+        throw new Error(`Network connectivity issue: ${(networkError as any)?.message || 'Unable to connect to Sui network'}`);
+      }
+      
+      // Check key server connectivity first
+      console.log("Checking key server connectivity...");
+      const connectivityResult = await checkKeyServerConnectivity();
+      console.log("Connectivity result:", connectivityResult);
+      
+      if (!connectivityResult.isConnected) {
+        throw new Error(`Key servers are not accessible: ${connectivityResult.details}. Please check your internet connection and try again later.`);
+      }
+      
       // Check access control before proceeding
       const hasAccess = task.creator === currentAccount.address || 
                        task.shared_with.includes(currentAccount.address);
@@ -358,7 +443,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
       try {
         sessionKey = await SessionKey.create({
           address: currentAccount.address,
-          packageId: packageId, // Keep as string, the library handles conversion
+          packageId: packageId,
           ttlMin: 30, // 30 minutes TTL as recommended
           suiClient,
         });
@@ -399,34 +484,69 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
               console.log("Session key initialized successfully");
               
               // Create SealClient following official patterns from documentation
-              let sealClient;
+              let sealClient: SealClient | null = null;
               try {
+                console.log("Creating SealClient...");
+                const keyServers = getAllowlistedKeyServers('testnet');
+                console.log("Available key servers:", keyServers);
+                
+                if (keyServers.length === 0) {
+                  throw new Error("No key servers available for testnet");
+                }
+                
+                // Use the official pattern from SEAL documentation
                 sealClient = new SealClient({
                   suiClient,
-                  serverConfigs: getAllowlistedKeyServers('testnet').map((id) => ({
+                  serverConfigs: keyServers.map((id) => ({
                     objectId: id,
                     weight: 1,
                   })),
-                  verifyKeyServers: false, // Set to false for performance as recommended
+                  verifyKeyServers: false, // Disable verification for better reliability
                 });
-                console.log("SealClient created successfully");
+                console.log(`SealClient created successfully using ${keyServers.length} key servers`);
               } catch (clientError) {
                 console.error("Failed to create SealClient:", clientError);
-                throw new Error(`SealClient creation failed: ${(clientError as any)?.message || clientError}`);
+                
+                // Try with a minimal configuration as fallback
+                try {
+                  console.log("Trying minimal SealClient configuration...");
+                  const keyServers = getAllowlistedKeyServers('testnet');
+                  sealClient = new SealClient({
+                    suiClient,
+                    serverConfigs: keyServers.slice(0, 3).map((id) => ({
+                      objectId: id,
+                      weight: 1,
+                    })),
+                    verifyKeyServers: false,
+                  });
+                  console.log("SealClient created with minimal configuration");
+                } catch (fallbackError) {
+                  console.error("Failed to create SealClient with fallback configuration:", fallbackError);
+                  throw new Error(`SealClient creation failed: ${(clientError as any)?.message || clientError}`);
+                }
               }
               
-              // Move call constructor for access control following official patterns
+              // Move call constructor for access control following official SEAL patterns
               const moveCallConstructor = (tx: Transaction, encryptionId: string) => {
+                // Convert hex string to bytes array as required by SEAL
+                const hexToBytes = (hex: string): number[] => {
+                  const bytes: number[] = [];
+                  for (let i = 0; i < hex.length; i += 2) {
+                    bytes.push(parseInt(hex.substr(i, 2), 16));
+                  }
+                  return bytes;
+                };
+                
                 tx.moveCall({
                   target: `${packageId}::task_manager::seal_approve`,
                   arguments: [
-                    tx.pure.vector("u8", Array.from(new TextEncoder().encode(encryptionId))),
+                    tx.pure.vector("u8", hexToBytes(encryptionId)),
                     tx.object(taskId)
                   ],
                 });
               };
 
-              // Decrypt content if available - following official patterns
+              // Decrypt content if available - following official SEAL patterns
               if (task.content_blob_id) {
                 console.log("Decrypting content...");
                 console.log("Content blob ID:", task.content_blob_id);
@@ -459,22 +579,24 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                       throw new Error(`Transaction build failed: ${(txError as any)?.message || txError}`);
                     }
                     
-                    // Fetch keys using official patterns with proper error handling
+                    // Fetch keys using official patterns - step 1 of SEAL decryption
                     try {
                       console.log("Fetching keys for content...");
                       await sealClient.fetchKeys({
                         ids: [encryptedContent.id],
                         txBytes,
                         sessionKey,
-                        threshold: 2,
+                        threshold: 2, // Use threshold 2 as recommended
                       });
                       console.log("Keys fetched successfully for content");
                     } catch (keyError) {
                       console.error("Failed to fetch keys:", keyError);
+                      
                       if (keyError instanceof NoAccessError) {
                         throw new Error('No access to decryption keys - check task permissions');
                       }
-                      // Retry with threshold 1 as fallback following official patterns
+                      
+                      // Retry with threshold 1 as fallback per documentation
                       try {
                         console.log("Retrying with threshold 1...");
                         await sealClient.fetchKeys({
@@ -485,12 +607,12 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                         });
                         console.log("Keys fetched successfully with threshold 1");
                       } catch (retryError) {
-                        console.error("Retry with threshold 1 also failed:", retryError);
-                        throw new Error('Unable to fetch decryption keys from key servers');
+                        console.error("All key fetching attempts failed:", retryError);
+                        throw new Error(`Unable to fetch decryption keys: ${(retryError as any)?.message || 'Key servers may be unavailable'}`);
                       }
                     }
                     
-                    // Decrypt content following official patterns
+                    // Decrypt content following official patterns - step 2 of SEAL decryption  
                     try {
                       console.log("Decrypting content...");
                       const decryptedBytes = await sealClient.decrypt({
@@ -504,7 +626,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                       console.log("Content decrypted successfully, length:", contentText.length);
                     } catch (decryptError) {
                       console.error("Failed to decrypt content:", decryptError);
-                      throw new Error(`Content decrypt failed: ${(decryptError as any)?.message || decryptError}`);
+                      throw new Error(`Content decryption failed: ${(decryptError as any)?.message || decryptError}`);
                     }
                   } else {
                     console.warn("Failed to download content from Walrus");
@@ -516,7 +638,7 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
                 }
               }
 
-              // Decrypt files if available following official patterns
+              // Decrypt files if available following official SEAL patterns
               if (task.file_blob_ids && task.file_blob_ids.length > 0) {
                 console.log(`Decrypting ${task.file_blob_ids.length} files...`);
                 console.log("File blob IDs:", task.file_blob_ids);
@@ -587,8 +709,14 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
       console.error("Error message:", message);
       if (message.includes("access") || message.includes("permission")) {
         errorMsg = "Access denied: Check if task is shared with you or you are the creator";
-      } else if (message.includes("fetchKeys")) {
-        errorMsg = "Failed to fetch decryption keys from key servers";
+      } else if (message.includes("fetchKeys") || message.includes("key servers")) {
+        errorMsg = "Failed to fetch decryption keys. This could be due to:\n• Key servers being temporarily unavailable\n• Network connectivity issues\n• Task access permissions\n• Session key configuration problems\n\nTroubleshooting steps:\n1. Check your internet connection\n2. Wait a few moments and try again\n3. Ensure you have access to this task\n4. Check browser console for detailed error information";
+      } else if (message.includes("Key servers are not accessible")) {
+        errorMsg = "Key servers are currently unavailable. This may be due to:\n• Testnet key server maintenance\n• Network connectivity issues\n• Regional access restrictions\n\nPlease try again in a few minutes.";
+      } else if (message.includes("SealClient not available")) {
+        errorMsg = "SEAL encryption client could not be initialized. This may be due to:\n• Key server configuration issues\n• Network connectivity problems\n• Library compatibility issues\n\nPlease refresh the page and try again.";
+      } else if (message.includes("Network connectivity")) {
+        errorMsg = "Unable to connect to the Sui network. Please check your internet connection and try again.";
       } else if (message.includes("Walrus")) {
         errorMsg = "Failed to download files from storage - they may have expired";
       } else if (message.includes("Session")) {
@@ -684,12 +812,12 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
           disabled={isLoading || !currentAccount || (!task.content_blob_id && task.file_blob_ids.length === 0)}
           loading={isLoading}
         >
-          {isLoading ? "Decrypting..." : "View Content & Download Files"}
+          {isLoading ? "Decrypting content..." : "View Content & Download Files"}
         </Button>
 
         {error && (
           <Box p="3" style={{ backgroundColor: "#fee", borderRadius: "6px" }}>
-            <Text color="red" size="2">
+            <Text color="red" size="2" style={{ whiteSpace: "pre-line" }}>
               {error}
             </Text>
           </Box>
