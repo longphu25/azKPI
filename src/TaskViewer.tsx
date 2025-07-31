@@ -16,6 +16,8 @@ interface Task {
   is_completed: boolean;
   created_at: string;
   updated_at: string;
+  due_date: string;
+  priority: number;
 }
 
 interface TaskViewerProps {
@@ -34,6 +36,31 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Helper function to format priority
+  const getPriorityLabel = (priority: number) => {
+    switch (priority) {
+      case 1: return { label: "Low", color: "green" };
+      case 2: return { label: "Medium", color: "blue" };
+      case 3: return { label: "High", color: "orange" };
+      case 4: return { label: "Critical", color: "red" };
+      default: return { label: "Unknown", color: "gray" };
+    }
+  };
+
+  // Helper function to format due date
+  const formatDueDate = (due_date: string) => {
+    if (due_date === "0") return "No due date";
+    const date = new Date(parseInt(due_date) * 1000);
+    return date.toLocaleDateString();
+  };
+
+  // Helper function to check if task is overdue
+  const isOverdue = (due_date: string, is_completed: boolean) => {
+    if (due_date === "0" || is_completed) return false;
+    const dueTime = parseInt(due_date) * 1000;
+    return Date.now() > dueTime;
+  };
 
   // Walrus aggregator endpoints (ordered by reliability)
   const aggregators = [
@@ -70,6 +97,8 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
           is_completed: fields.is_completed,
           created_at: fields.created_at,
           updated_at: fields.updated_at,
+          due_date: fields.due_date || "0",
+          priority: fields.priority || 1,
         });
       }
     } catch (error) {
@@ -594,14 +623,43 @@ const TaskViewer: React.FC<TaskViewerProps> = ({ taskId }) => {
     );
   }
 
+  const priorityInfo = getPriorityLabel(task.priority);
+  const overdueStatus = isOverdue(task.due_date, task.is_completed);
+
   return (
-    <Card>
+    <Card style={{ 
+      border: overdueStatus ? "2px solid var(--red-9)" : undefined,
+      backgroundColor: overdueStatus ? "var(--red-2)" : undefined
+    }}>
       <Flex direction="column" gap="4">
         <Flex direction="column" gap="2">
-          <Strong>{task.title}</Strong>
+          <Flex align="center" gap="2">
+            <Strong>{task.title}</Strong>
+            <Text size="1" style={{ 
+              padding: "2px 8px", 
+              borderRadius: "4px", 
+              backgroundColor: `var(--${priorityInfo.color}-3)`,
+              color: `var(--${priorityInfo.color}-11)`
+            }}>
+              {priorityInfo.label}
+            </Text>
+            {overdueStatus && (
+              <Text size="1" style={{ 
+                padding: "2px 8px", 
+                borderRadius: "4px", 
+                backgroundColor: "var(--red-9)",
+                color: "white"
+              }}>
+                OVERDUE
+              </Text>
+            )}
+          </Flex>
           <Text color="gray">{task.description}</Text>
           <Text size="2" color="gray">
             Created by: {task.creator === currentAccount?.address ? "You" : task.creator}
+          </Text>
+          <Text size="2" color="gray">
+            Due date: {formatDueDate(task.due_date)}
           </Text>
           <Text size="2" color="gray">
             Shared with: {task.shared_with.length} users

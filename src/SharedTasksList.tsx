@@ -10,6 +10,8 @@ interface SharedTaskItem {
   description: string;
   creator: string;
   is_completed: boolean;
+  due_date: string;
+  priority: number;
 }
 
 export function SharedTasksList() {
@@ -20,6 +22,31 @@ export function SharedTasksList() {
   const currentAccount = useCurrentAccount();
   const suiClient = useSuiClient();
   const packageId = useNetworkVariable("taskManagerPackageId");
+
+  // Helper function to format priority
+  const getPriorityLabel = (priority: number) => {
+    switch (priority) {
+      case 1: return { label: "Low", color: "green" };
+      case 2: return { label: "Medium", color: "blue" };
+      case 3: return { label: "High", color: "orange" };
+      case 4: return { label: "Critical", color: "red" };
+      default: return { label: "Unknown", color: "gray" };
+    }
+  };
+
+  // Helper function to format due date
+  const formatDueDate = (due_date: string) => {
+    if (due_date === "0") return "No due date";
+    const date = new Date(parseInt(due_date) * 1000);
+    return date.toLocaleDateString();
+  };
+
+  // Helper function to check if task is overdue
+  const isOverdue = (due_date: string, is_completed: boolean) => {
+    if (due_date === "0" || is_completed) return false;
+    const dueTime = parseInt(due_date) * 1000;
+    return Date.now() > dueTime;
+  };
 
   useEffect(() => {
     if (currentAccount) {
@@ -69,6 +96,8 @@ export function SharedTasksList() {
                     description: fields.description,
                     creator: fields.creator,
                     is_completed: fields.is_completed,
+                    due_date: fields.due_date || "0",
+                    priority: fields.priority || 1,
                   });
                 }
               }
@@ -126,32 +155,66 @@ export function SharedTasksList() {
           </Text>
         ) : (
           <Flex direction="column" gap="3">
-            {sharedTasks.map((task) => (
-              <Card key={task.id} style={{ padding: "1rem" }}>
-                <Flex justify="between" align="center">
-                  <Flex direction="column" gap="1">
-                    <Text size="4" weight="medium">
-                      {task.title}
-                    </Text>
-                    <Text size="2" color="gray">
-                      {task.description}
-                    </Text>
-                    <Text size="1" color="gray">
-                      Created by: {task.creator.slice(0, 10)}...
-                    </Text>
-                    <Text size="1" color="gray">
-                      Status: {task.is_completed ? "Completed" : "In Progress"}
-                    </Text>
+            {sharedTasks.map((task) => {
+              const priorityInfo = getPriorityLabel(task.priority);
+              const overdueStatus = isOverdue(task.due_date, task.is_completed);
+              
+              return (
+                <Card key={task.id} style={{ 
+                  padding: "1rem",
+                  border: overdueStatus ? "2px solid var(--red-9)" : undefined,
+                  backgroundColor: overdueStatus ? "var(--red-2)" : undefined
+                }}>
+                  <Flex justify="between" align="center">
+                    <Flex direction="column" gap="1">
+                      <Flex align="center" gap="2">
+                        <Text size="4" weight="medium">
+                          {task.title}
+                        </Text>
+                        <Text size="1" style={{ 
+                          padding: "2px 8px", 
+                          borderRadius: "4px", 
+                          backgroundColor: `var(--${priorityInfo.color}-3)`,
+                          color: `var(--${priorityInfo.color}-11)`
+                        }}>
+                          {priorityInfo.label}
+                        </Text>
+                        {overdueStatus && (
+                          <Text size="1" style={{ 
+                            padding: "2px 8px", 
+                            borderRadius: "4px", 
+                            backgroundColor: "var(--red-9)",
+                            color: "white"
+                          }}>
+                            OVERDUE
+                          </Text>
+                        )}
+                      </Flex>
+                      <Text size="2" color="gray">
+                        {task.description}
+                      </Text>
+                      <Text size="1" color="gray">
+                        Created by: {task.creator.slice(0, 10)}...
+                      </Text>
+                      <Flex gap="3">
+                        <Text size="1" color="gray">
+                          Status: {task.is_completed ? "Completed" : "In Progress"}
+                        </Text>
+                        <Text size="1" color="gray">
+                          Due: {formatDueDate(task.due_date)}
+                        </Text>
+                      </Flex>
+                    </Flex>
+                    <Button
+                      size="2"
+                      onClick={() => setSelectedTask(task.id)}
+                    >
+                      View Task
+                    </Button>
                   </Flex>
-                  <Button
-                    size="2"
-                    onClick={() => setSelectedTask(task.id)}
-                  >
-                    View Task
-                  </Button>
-                </Flex>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </Flex>
         )}
       </Flex>

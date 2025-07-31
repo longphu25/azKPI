@@ -12,6 +12,13 @@ module task_manager::task_manager {
   /// Error codes
   const ENotCreator: u64 = 0;
   const ENoAccess: u64 = 1;
+  const EInvalidPriority: u64 = 2;
+
+  /// Priority levels
+  const PRIORITY_LOW: u8 = 1;
+  const PRIORITY_MEDIUM: u8 = 2;
+  const PRIORITY_HIGH: u8 = 3;
+  const PRIORITY_CRITICAL: u8 = 4;
 
   /// Task object that contains metadata and references to Walrus-stored content
   public struct Task has key, store {
@@ -24,6 +31,8 @@ module task_manager::task_manager {
     shared_with: vector<address>, // Users who have access to this task
     created_at: u64,
     updated_at: u64,
+    due_date: u64, // Due date timestamp (0 means no due date)
+    priority: u8, // Priority level: 1 = Low, 2 = Medium, 3 = High, 4 = Critical
     is_completed: bool,
   }
 
@@ -58,6 +67,18 @@ module task_manager::task_manager {
     file_blob_ids: vector<String>,
   }
 
+  /// Event emitted when task priority is updated
+  public struct TaskPriorityUpdated has copy, drop {
+    task_id: address,
+    priority: u8,
+  }
+
+  /// Event emitted when task due date is updated
+  public struct TaskDueDateUpdated has copy, drop {
+    task_id: address,
+    due_date: u64,
+  }
+
   /// Create a new task manager capability
   public fun create_task_manager_cap(ctx: &mut TxContext): TaskManagerCap {
     let cap = TaskManagerCap {
@@ -71,8 +92,13 @@ module task_manager::task_manager {
   public fun create_task(
     title: vector<u8>,
     description: vector<u8>,
+    due_date: u64, // Due date timestamp (0 means no due date)
+    priority: u8, // Priority level: 1-4
     ctx: &mut TxContext
   ) {
+    // Validate priority level
+    assert!(priority >= PRIORITY_LOW && priority <= PRIORITY_CRITICAL, EInvalidPriority);
+    
     let task_title = string::utf8(title);
     let task_description = string::utf8(description);
     
@@ -86,6 +112,8 @@ module task_manager::task_manager {
       shared_with: vector::empty(),
       created_at: tx_context::epoch(ctx),
       updated_at: tx_context::epoch(ctx),
+      due_date,
+      priority,
       is_completed: false,
     };
 
@@ -170,6 +198,41 @@ module task_manager::task_manager {
     task.updated_at = tx_context::epoch(ctx);
   }
 
+  /// Update task priority
+  public fun update_priority(
+    task: &mut Task,
+    priority: u8,
+    ctx: &mut TxContext
+  ) {
+    assert!(task.creator == tx_context::sender(ctx), ENotCreator);
+    assert!(priority >= PRIORITY_LOW && priority <= PRIORITY_CRITICAL, EInvalidPriority);
+    
+    task.priority = priority;
+    task.updated_at = tx_context::epoch(ctx);
+
+    event::emit(TaskPriorityUpdated {
+      task_id: object::uid_to_address(&task.id),
+      priority,
+    });
+  }
+
+  /// Update task due date
+  public fun update_due_date(
+    task: &mut Task,
+    due_date: u64,
+    ctx: &mut TxContext
+  ) {
+    assert!(task.creator == tx_context::sender(ctx), ENotCreator);
+    
+    task.due_date = due_date;
+    task.updated_at = tx_context::epoch(ctx);
+
+    event::emit(TaskDueDateUpdated {
+      task_id: object::uid_to_address(&task.id),
+      due_date,
+    });
+  }
+
   /// Check if user has access to task
   public fun has_access(task: &Task, user: address): bool {
     if (task.creator == user) {
@@ -250,6 +313,25 @@ module task_manager::task_manager {
   public fun get_updated_at(task: &Task): u64 {
     task.updated_at
   }
+
+  public fun get_due_date(task: &Task): u64 {
+    task.due_date
+  }
+
+  public fun get_priority(task: &Task): u8 {
+    task.priority
+  }
+
+  /// Check if task is overdue (due date has passed and task is not completed)
+  public fun is_overdue(task: &Task, current_time: u64): bool {
+    task.due_date > 0 && current_time > task.due_date && !task.is_completed
+  }
+
+  /// Get priority level constants
+  public fun priority_low(): u8 { PRIORITY_LOW }
+  public fun priority_medium(): u8 { PRIORITY_MEDIUM }
+  public fun priority_high(): u8 { PRIORITY_HIGH }
+  public fun priority_critical(): u8 { PRIORITY_CRITICAL }
 
   // TaskManagerCap getter functions
   public fun get_cap_owner(cap: &TaskManagerCap): address {

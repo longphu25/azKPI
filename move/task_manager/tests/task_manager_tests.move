@@ -7,7 +7,7 @@ module task_manager::task_manager_tests {
     use sui::test_utils;
     use std::string;
     use std::vector;
-    use task_manager::task_manager::{Self, Task, TaskManagerCap, ENotCreator};
+    use task_manager::task_manager::{Self, Task, TaskManagerCap, ENotCreator, EInvalidPriority};
 
     const ADMIN: address = @0xAD;
     const USER1: address = @0x1;
@@ -34,8 +34,10 @@ module task_manager::task_manager_tests {
         // Create a task
         let title = b"Test Task";
         let description = b"This is a test task";
+        let due_date = 1234567890; // Example timestamp
+        let priority = task_manager::priority_medium();
         
-        task_manager::create_task(title, description, test_scenario::ctx(&mut scenario));
+        task_manager::create_task(title, description, due_date, priority, test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -52,6 +54,8 @@ module task_manager::task_manager_tests {
         assert!(vector::is_empty(&task_manager::get_file_blob_ids(&task)));
         assert!(vector::is_empty(&task_manager::get_shared_with(&task)));
         assert!(!task_manager::is_completed(&task));
+        assert!(task_manager::get_due_date(&task) == due_date);
+        assert!(task_manager::get_priority(&task) == priority);
         
         test_scenario::return_shared(task);
         test_scenario::end(scenario);
@@ -62,7 +66,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task first
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -84,7 +88,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task first
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -112,7 +116,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task first
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -140,7 +144,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task first
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -164,7 +168,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -195,7 +199,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -224,7 +228,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task as ADMIN
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, USER1); // Switch to USER1
         
@@ -243,7 +247,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task as ADMIN
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, USER1); // Switch to USER1
         
@@ -264,7 +268,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task as ADMIN
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, USER1); // Switch to USER1
         
@@ -285,7 +289,7 @@ module task_manager::task_manager_tests {
         let mut scenario = test_scenario::begin(ADMIN);
         
         // Create a task as ADMIN
-        task_manager::create_task(b"Test Task", b"Description", test_scenario::ctx(&mut scenario));
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, USER1); // Switch to USER1
         
@@ -305,7 +309,9 @@ module task_manager::task_manager_tests {
         // Create a task
         let title = b"Test Task";
         let description = b"Test Description";
-        task_manager::create_task(title, description, test_scenario::ctx(&mut scenario));
+        let due_date = 9876543210;
+        let priority = task_manager::priority_high();
+        task_manager::create_task(title, description, due_date, priority, test_scenario::ctx(&mut scenario));
         
         test_scenario::next_tx(&mut scenario, ADMIN);
         
@@ -319,6 +325,8 @@ module task_manager::task_manager_tests {
         assert!(vector::is_empty(&task_manager::get_file_blob_ids(&task)));
         assert!(vector::is_empty(&task_manager::get_shared_with(&task)));
         assert!(!task_manager::is_completed(&task));
+        assert!(task_manager::get_due_date(&task) == due_date);
+        assert!(task_manager::get_priority(&task) == priority);
         
         // Test that task ID is valid address
         let task_id = task_manager::get_task_id(&task);
@@ -328,6 +336,158 @@ module task_manager::task_manager_tests {
         let created_at = task_manager::get_created_at(&task);
         let updated_at = task_manager::get_updated_at(&task);
         assert!(created_at == updated_at); // Should be same initially
+        
+        test_scenario::return_shared(task);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_update_priority() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        
+        // Create a task with medium priority
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_medium(), test_scenario::ctx(&mut scenario));
+        
+        test_scenario::next_tx(&mut scenario, ADMIN);
+        
+        let mut task = test_scenario::take_shared<Task>(&scenario);
+        
+        // Verify initial priority
+        assert!(task_manager::get_priority(&task) == task_manager::priority_medium());
+        
+        // Update to high priority
+        task_manager::update_priority(&mut task, task_manager::priority_high(), test_scenario::ctx(&mut scenario));
+        
+        // Verify priority was updated
+        assert!(task_manager::get_priority(&task) == task_manager::priority_high());
+        
+        test_scenario::return_shared(task);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_update_due_date() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        
+        // Create a task with no due date
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
+        
+        test_scenario::next_tx(&mut scenario, ADMIN);
+        
+        let mut task = test_scenario::take_shared<Task>(&scenario);
+        
+        // Verify initial due date
+        assert!(task_manager::get_due_date(&task) == 0);
+        
+        // Update due date
+        let new_due_date = 1234567890;
+        task_manager::update_due_date(&mut task, new_due_date, test_scenario::ctx(&mut scenario));
+        
+        // Verify due date was updated
+        assert!(task_manager::get_due_date(&task) == new_due_date);
+        
+        test_scenario::return_shared(task);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_is_overdue() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        
+        // Create a task with due date in the past
+        let past_due_date = 1000000000;
+        task_manager::create_task(b"Test Task", b"Description", past_due_date, task_manager::priority_medium(), test_scenario::ctx(&mut scenario));
+        
+        test_scenario::next_tx(&mut scenario, ADMIN);
+        
+        let mut task = test_scenario::take_shared<Task>(&scenario);
+        
+        // Task should be overdue (not completed and due date has passed)
+        let current_time = 2000000000;
+        assert!(task_manager::is_overdue(&task, current_time));
+        
+        // Complete the task
+        task_manager::complete_task(&mut task, test_scenario::ctx(&mut scenario));
+        
+        // Task should no longer be overdue (even though due date passed, it's completed)
+        assert!(!task_manager::is_overdue(&task, current_time));
+        
+        test_scenario::return_shared(task);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    fun test_priority_constants() {
+        // Test priority constant getter functions
+        assert!(task_manager::priority_low() == 1);
+        assert!(task_manager::priority_medium() == 2);
+        assert!(task_manager::priority_high() == 3);
+        assert!(task_manager::priority_critical() == 4);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = EInvalidPriority)]
+    fun test_create_task_invalid_priority() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        
+        // Try to create a task with invalid priority (0)
+        task_manager::create_task(b"Test Task", b"Description", 0, 0, test_scenario::ctx(&mut scenario));
+        
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = EInvalidPriority)]
+    fun test_update_priority_invalid() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        
+        // Create a task
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
+        
+        test_scenario::next_tx(&mut scenario, ADMIN);
+        
+        let mut task = test_scenario::take_shared<Task>(&scenario);
+        
+        // Try to update to invalid priority (5)
+        task_manager::update_priority(&mut task, 5, test_scenario::ctx(&mut scenario));
+        
+        test_scenario::return_shared(task);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ENotCreator)]
+    fun test_update_priority_unauthorized() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        
+        // Create a task as ADMIN
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
+        
+        test_scenario::next_tx(&mut scenario, USER1); // Switch to USER1
+        
+        let mut task = test_scenario::take_shared<Task>(&scenario);
+        
+        // USER1 tries to update priority (should fail)
+        task_manager::update_priority(&mut task, task_manager::priority_high(), test_scenario::ctx(&mut scenario));
+        
+        test_scenario::return_shared(task);
+        test_scenario::end(scenario);
+    }
+
+    #[test]
+    #[expected_failure(abort_code = ENotCreator)]
+    fun test_update_due_date_unauthorized() {
+        let mut scenario = test_scenario::begin(ADMIN);
+        
+        // Create a task as ADMIN
+        task_manager::create_task(b"Test Task", b"Description", 0, task_manager::priority_low(), test_scenario::ctx(&mut scenario));
+        
+        test_scenario::next_tx(&mut scenario, USER1); // Switch to USER1
+        
+        let mut task = test_scenario::take_shared<Task>(&scenario);
+        
+        // USER1 tries to update due date (should fail)
+        task_manager::update_due_date(&mut task, 1234567890, test_scenario::ctx(&mut scenario));
         
         test_scenario::return_shared(task);
         test_scenario::end(scenario);
